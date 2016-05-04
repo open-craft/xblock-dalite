@@ -1,0 +1,4 @@
+lazy>=1.1
+
+XBlock>=0.4
+git+https://github.com/edx/xblock-lti-consumer#egg=lti_consumer-xblock
