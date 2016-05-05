@@ -26,7 +26,7 @@ test_fast:
 ifdef XVFB
 	xvfb-run --server-args="-screen 0, 1920x1080x24" ./run_tests.py --with-coverage --cover-package=dalite
 else
-	./run_tests.py --with-coverage --cover-package=dalite
+	./run_tests.py --with-coverage --cover-package=dalite_xblock
 endif
 	coverage html
 

@@ -27,11 +27,12 @@ setup(
     description='XBlock - Dalite',
     packages=['dalite_xblock'],
     install_requires=[
-        'XBlock>=0.4',
+        'XBlock>=0.4.7',
         'lazy>=1.1',
         'lti_consumer-xblock>=1.0.5'
     ],
     dependency_links=[
+        'https://github.com/edx/XBlock/tarball/xblock-0.4.10#egg=XBlock-0.4.10',
         'https://github.com/edx/xblock-lti-consumer/tarball/v1.0.6#egg=lti_consumer-xblock-1.0.6'
     ],
     entry_points={
