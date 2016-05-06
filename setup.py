@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Setup script for Dalite XBlock."""
 
 # Imports ###########################################################
 
@@ -13,7 +14,7 @@ def package_data(pkg, root_list):
     """Generic function to find package_data for `pkg` under `root`."""
     data = []
     for root in root_list:
-        for dirname, _, files in os.walk(os.path.join(pkg, root)):
+        for dirname, dirnames, files in os.walk(os.path.join(pkg, root)):  # pylint: disable=unused-variable
             for fname in files:
                 data.append(os.path.relpath(os.path.join(dirname, fname), pkg))
 
@@ -36,7 +37,7 @@ setup(
         'https://github.com/edx/xblock-lti-consumer/tarball/v1.0.6#egg=lti_consumer-xblock-1.0.6'
     ],
     entry_points={
-        'xblock.v1': 'xblock-dalite = dalite_xblock.dalite_xblock:DaliteXBlock',
+        'xblock.v1': 'xblock-dalite = dalite_xblock.xblock:DaliteXBlock',
     },
     package_data=package_data("dalite_xblock", ["templates", "public"]),
 )

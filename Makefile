@@ -24,7 +24,7 @@ test: setup-sdk test-requirements test_fast
 
 test_fast:
 ifdef XVFB
-	xvfb-run --server-args="-screen 0, 1920x1080x24" ./run_tests.py --with-coverage --cover-package=dalite
+	xvfb-run --server-args="-screen 0, 1920x1080x24" ./run_tests.py --with-coverage --cover-package=dalite_xblock
 else
 	./run_tests.py --with-coverage --cover-package=dalite_xblock
 endif
@@ -32,7 +32,7 @@ endif
 
 diff-cover:
 	coverage xml -o coverage/py/cobertura/coverage.xml
-	diff-cover --compare-branch=master coverage/py/cobertura/coverage.xml coverage/js/cobertura/coverage.xml
+	diff-cover --compare-branch=master coverage/py/cobertura/coverage.xml
 
 quality:
 	prospector

@@ -1,3 +1,4 @@
+"""Dalite XBlock - convenient wrapper for LTIConsumer block tuned to work with dalite-ng."""
 import logging
 import re
 from collections import namedtuple
@@ -7,7 +8,7 @@ from lti_consumer import LtiConsumerXBlock
 from xblock.fields import String, Scope
 from xblockutils.resources import ResourceLoader
 
-from .utils import _, field_values_context_manager
+from .utils import _, FieldValuesContextManager
 
 
 logger = logging.getLogger(__name__)
@@ -32,8 +33,15 @@ DaliteLtiPassport = namedtuple("LtiPassport", ["lti_id", "dalite_root_url", "lti
 
 class DaliteXBlock(LtiConsumerXBlock):
     """
-    Dalite XBlock
+    This XBlock provides an LTI consumer interface for integrating Dalite-NG tools using the LTI specification.
+
+    This is a wrapper around LtiConsumerXBlock, providing sensible defaults and fixed values to some
+    fields, so course authors must only edit two fields: Assignment ID and Question ID - other fields
+    are either automatically populated, or have default values suit most common cases.
+
+    See LtiConsumerXBlock docstring for more detailed information
     """
+
     display_name = String(
         display_name=_("Display Name"),
         help=_(
@@ -76,11 +84,20 @@ class DaliteXBlock(LtiConsumerXBlock):
     def course(self):
         """
         Return course by course id.
+
+        :returns: Course XBlock for current course
+        :rtype: XBlock
         """
-        return self.runtime.modulestore.get_course(self.course_id)  # pylint: disable=no-member
+        return self.runtime.modulestore.get_course(self.course_id)
 
     @lazy
     def _dalite_xblock_lti_passports(self):
+        """
+        Return all xblock-dalite LTI passports.
+
+        :returns: list of all Dalite-xblock LTI Passports
+        :rtype: list[DaliteLtiPassport]
+        """
         result = []
         for lti_passport in self.course.lti_passports:
             lti_passport_analyzed = DALITE_XBLOCK_LTI_PASSPORT_REGEX.search(lti_passport)
@@ -93,6 +110,12 @@ class DaliteXBlock(LtiConsumerXBlock):
 
     @lazy
     def lti_passport(self):
+        """
+        Return selected LTI passport.
+
+        :returns: LTI passport matching selected LTI ID
+        :rtype: DaliteLtiPassport|None
+        """
         for lti_passport in self._dalite_xblock_lti_passports:
             if lti_passport.lti_id == self.lti_id.strip():
                 logging.warn(
@@ -105,35 +128,34 @@ class DaliteXBlock(LtiConsumerXBlock):
 
     @property
     def launch_url(self):
+        """
+        Return LTI launch URL for selected LTI passport.
+
+        :returns: launch URL for selected Dalite-ng instance
+        :rtype: string
+        """
         if not self.lti_passport:
             return ''
         return self.lti_passport.dalite_root_url.rstrip('/') + '/lti/'
 
-    def get_fixed_values(self, assignment_id, question_id):
-        custom_parameters = ["assignment_id="+str(assignment_id), "question_id="+str(question_id)]
-        return {
-            'hide_launch': False,
-            'has_score': True,
-            'custom_parameters': custom_parameters,
-            'ask_to_send_username': False,
-            'ask_to_send_email': False
-        }
-
     def _get_context_for_template(self):
         """
-        Returns the context dict for LTI templates.
+        Return the context dict for LTI templates.
 
-        Arguments:
-            None
-
-        Returns:
-            dict: Context variables for templates
+        :returns: Context variables for templates
+        :rtype:dict
         """
         result = super(DaliteXBlock, self)._get_context_for_template()
         result['launch_url'] = self.launch_url
         return result
 
     def lti_id_values_provider(self):
+        """
+        Provide values for LTI ID field at runtime.
+
+        :returns: List of Dalite-xblock LTI passports IDs.
+        :rtype: [dict[str, str]]
+        """
         if not self._dalite_xblock_lti_passports:
             return [{"display_name": _("No Dalite-ng LTI Passports configured"), "value": ""}]
 
@@ -143,26 +165,57 @@ class DaliteXBlock(LtiConsumerXBlock):
         ]
 
     def student_view(self, context):
+        """
+        XBlock student view of this component.
+
+        Makes a request to `lti_launch_handler` either
+        in an iframe or in a new window depending on the
+        configuration of the instance of this XBlock
+
+        :param dict context: XBlock context
+
+        :returns: XBlock HTML fragment
+        :rtype: xblock.fragment.Fragment
+        """
         fragment = super(DaliteXBlock, self).student_view(context)
         fragment.add_javascript(loader.load_unicode('public/js/dalite_xblock.js'))
         fragment.initialize_js('DaliteXBlock')
         return fragment
 
     def studio_view(self, context):
+        """
+        XBlock studio edit view of this component.
+
+        :param dict context: XBlock context
+
+        :returns: XBlock HTML fragment
+        :rtype: xblock.fragment.Fragment
+        """
         # can't use values_provider as we need it to be bound to current block instance
-        with field_values_context_manager(self, 'lti_id', self.lti_id_values_provider):
+        with FieldValuesContextManager(self, 'lti_id', self.lti_id_values_provider):
             fragment = super(DaliteXBlock, self).studio_view(context)
             fragment.add_javascript(loader.load_unicode('public/js/dalite_xblock_edit.js'))
             fragment.initialize_js('DaliteXBlockEdit')
             return fragment
 
-    def clean_studio_edits(self, data):
+    def clean_studio_edits(self, data):  # pylint: disable=no-self-use
         """
         Given POST data dictionary 'data', clean the data before validating it.
-        e.g. fix capitalization, remove trailing spaces, etc.
 
-        Provides values for fields required by LtiConsumerXBlock, but not exposed in Studio interface
+        USe cases: fix capitalization, remove trailing spaces, etc.
+
+        Provides values for fields required by LtiConsumerXBlock, but not exposed in Studio interface.
+        Modifies data in place to change/clean/add field values
+
+        :param dict data: Fields data
         """
-        fixed_values = self.get_fixed_values(data['assignment_id'], data['question_id'])
+        assignment_id, question_id = data['assignment_id'], data['question_id']
+        fixed_values = {
+            'hide_launch': False,
+            'has_score': True,
+            'custom_parameters': ["assignment_id=" + str(assignment_id), "question_id=" + str(question_id)],
+            'ask_to_send_username': False,
+            'ask_to_send_email': False
+        }
         data.update(fixed_values)
         logging.info(_(u"Cleaned xblock field values: %s"), data)
