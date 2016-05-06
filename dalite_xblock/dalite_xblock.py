@@ -8,6 +8,7 @@ from lti_consumer import LtiConsumerXBlock
 from xblock.fields import String, Scope
 from xblockutils.resources import ResourceLoader
 
+from .mixins import CourseAwareXBlockMixin
 from .utils import _, FieldValuesContextManager
 
 
@@ -31,7 +32,7 @@ DALITE_XBLOCK_LTI_PASSPORT_REGEX = re.compile(
 DaliteLtiPassport = namedtuple("LtiPassport", ["lti_id", "dalite_root_url", "lti_key", "lti_secret"])
 
 
-class DaliteXBlock(LtiConsumerXBlock):
+class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
     """
     This XBlock provides an LTI consumer interface for integrating Dalite-NG tools using the LTI specification.
 
@@ -137,17 +138,6 @@ class DaliteXBlock(LtiConsumerXBlock):
         if not self.lti_passport:
             return ''
         return self.lti_passport.dalite_root_url.rstrip('/') + '/lti/'
-
-    def _get_context_for_template(self):
-        """
-        Return the context dict for LTI templates.
-
-        :returns: Context variables for templates
-        :rtype:dict
-        """
-        result = super(DaliteXBlock, self)._get_context_for_template()
-        result['launch_url'] = self.launch_url
-        return result
 
     def lti_id_values_provider(self):
         """

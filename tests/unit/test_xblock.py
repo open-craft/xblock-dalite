@@ -3,18 +3,18 @@ from unittest import TestCase
 import mock
 from xblock.core import XBlock
 from xblock.field_data import DictFieldData
-from xblock.runtime import Runtime
 
-from dalite_xblock.xblock import DaliteXBlock
+from dalite_xblock.dalite_xblock import DaliteXBlock
 
 
 class DaliteXBlockTests(TestCase):
     DEFAULT_COURSE_ID = 'course-1'
 
     def setUp(self):
-        self.runtime_mock = mock.Mock(spec=Runtime)
+        self.runtime_mock = mock.Mock()
+        self.runtime_mock.course_id = self.DEFAULT_COURSE_ID
         self.block = DaliteXBlock(
-            self.runtime_mock, DictFieldData({'course_id': self.DEFAULT_COURSE_ID}), scope_ids=mock.Mock()
+            self.runtime_mock, DictFieldData({}), scope_ids=mock.Mock()
         )
 
     def test_course(self):

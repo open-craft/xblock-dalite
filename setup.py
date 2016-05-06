@@ -37,7 +37,7 @@ setup(
         'https://github.com/edx/xblock-lti-consumer/tarball/v1.0.6#egg=lti_consumer-xblock-1.0.6'
     ],
     entry_points={
-        'xblock.v1': 'xblock-dalite = dalite_xblock.xblock:DaliteXBlock',
+        'xblock.v1': 'xblock-dalite = dalite_xblock.dalite_xblock:DaliteXBlock',
     },
     package_data=package_data("dalite_xblock", ["templates", "public"]),
 )
