@@ -35,8 +35,7 @@ diff-cover:
 	diff-cover --compare-branch=master coverage/py/cobertura/coverage.xml coverage/js/cobertura/coverage.xml
 
 quality:
-	pep8 dalite tests --max-line-length=120
-	pylint dalite tests --rcfile=pylintrc
+	prospector
 
 coverage-report:
 	coverage report -m
