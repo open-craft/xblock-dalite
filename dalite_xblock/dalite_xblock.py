@@ -3,8 +3,8 @@ import logging
 
 from lazy.lazy import lazy
 from lti_consumer import LtiConsumerXBlock
-from xblock.fields import String, Scope
 from xblockutils.resources import ResourceLoader
+from xblock.fields import String, Scope
 
 from .mixins import CourseAwareXBlockMixin
 from .utils import _, FieldValuesContextManager, DaliteLtiPassport, DALITE_XBLOCK_LTI_PASSPORT_REGEX, \
