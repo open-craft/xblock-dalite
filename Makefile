@@ -11,6 +11,9 @@ requirements:
 test-requirements:
 	pip install -r requirements/test.txt
 
+quality-requirements:
+	pip install -r requirements/quality.txt
+
 js-requirements:
 	npm install
 
@@ -34,10 +37,12 @@ diff-cover:
 	coverage xml -o coverage/py/cobertura/coverage.xml
 	diff-cover --compare-branch=master coverage/py/cobertura/coverage.xml
 
-quality:
+quality: quality-requirements quality_fast
+
+quality_fast:
 	prospector
 
 coverage-report:
 	coverage report -m
 
-.PHONY: clean requirements test-requirements setup-self js-requirements test quality coverage-report
+.PHONY: clean requirements test-requirements quality-requirements setup-self js-requirements test quality coverage-report

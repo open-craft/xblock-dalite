@@ -1,4 +1,4 @@
-"""Tests for Dalite XBlock utilities"""
+"""Tests for Dalite XBlock utilities."""
 from unittest import TestCase
 
 import ddt
@@ -12,22 +12,24 @@ from dalite_xblock.utils import _, FieldValuesContextManager
 
 class DummyXBlock(XBlock):
     """Dummy XBlock."""
+
     field = String(values=[10, 15, 20])
 
 
 @ddt.ddt
 class GetTextTests(TestCase):
-    """Tests for gettext (aka _) method"""
+    """Tests for gettext (aka _) method."""
 
     @ddt.data(None, '', "qwerty", u"azerty")
     def test_gettext(self, argument):
-        """Tests that this particular implementation we use is a no-op (or, better put, identity function)."""
+        """Test that this particular implementation we use is a no-op (or, better put, identity function)."""
         self.assertEqual(_(argument), argument)
 
 
 @ddt.ddt
 class FieldValuesContextManagerTests(TestCase):
     """Tests for FieldValuesContextManager."""
+
     def setUp(self):
         """Obviously, setUp method prepares test environment for each test to run."""
         self.runtime_mock = mock.Mock()
