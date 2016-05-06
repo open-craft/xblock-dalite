@@ -1,7 +1,5 @@
 """Dalite XBlock - convenient wrapper for LTIConsumer block tuned to work with dalite-ng."""
 import logging
-import re
-from collections import namedtuple
 
 from lazy.lazy import lazy
 from lti_consumer import LtiConsumerXBlock
@@ -9,27 +7,11 @@ from xblock.fields import String, Scope
 from xblockutils.resources import ResourceLoader
 
 from .mixins import CourseAwareXBlockMixin
-from .utils import _, FieldValuesContextManager
-
+from .utils import _, FieldValuesContextManager, DaliteLtiPassport, DALITE_XBLOCK_LTI_PASSPORT_REGEX, \
+    DALITE_XBLOCK_LIT_PASSPORT_PREFIX
 
 logger = logging.getLogger(__name__)
 loader = ResourceLoader(__name__)
-
-DALITE_XBLOCK_LTI_PASSPORT_REGEX = re.compile(
-    r"""
-    ^                   # together with $ at the end denotes entire LTI passport is analyzed
-    \(dalite-xblock\)   # denotes dalite-xblock LTI passport
-    ([^;]+);            # first group - passport ID
-    ([^;]+);            # second group - Dalite-ng URL
-    ([^;]+);            # third group - LTI key
-    ([^;]+)             # fourth group - LTI secret
-    $
-    """,
-    re.VERBOSE
-)
-
-
-DaliteLtiPassport = namedtuple("LtiPassport", ["lti_id", "dalite_root_url", "lti_key", "lti_secret"])
 
 
 class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
@@ -81,6 +63,8 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         # 'ask_to_send_email' - dalite-ng defined
     ]
 
+    MALFORMED_LTI_PASSPORT = _(u"Malformed DAlite-XBlock LTI Passport: %s - skipping")
+
     @property
     def course(self):
         """
@@ -92,7 +76,7 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         return self.runtime.modulestore.get_course(self.course_id)
 
     @lazy
-    def _dalite_xblock_lti_passports(self):
+    def dalite_xblock_lti_passports(self):
         """
         Return all xblock-dalite LTI passports.
 
@@ -101,11 +85,14 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         """
         result = []
         for lti_passport in self.course.lti_passports:
-            lti_passport_analyzed = DALITE_XBLOCK_LTI_PASSPORT_REGEX.search(lti_passport)
-            if lti_passport_analyzed and lti_passport_analyzed.group(0):   # prevents zero-length matches
-                lti_id, dalite_root_url, lti_key, lti_secret = lti_passport_analyzed.group(1, 2, 3, 4)
-                passport = DaliteLtiPassport(lti_id, dalite_root_url, lti_key, lti_secret)
-                result.append(passport)
+            if DALITE_XBLOCK_LIT_PASSPORT_PREFIX in lti_passport:
+                lti_passport_analyzed = DALITE_XBLOCK_LTI_PASSPORT_REGEX.search(lti_passport)
+                if lti_passport_analyzed and lti_passport_analyzed.group(0):   # prevents zero-length matches
+                    lti_id, dalite_root_url, lti_key, lti_secret = lti_passport_analyzed.group(1, 2, 3, 4)
+                    passport = DaliteLtiPassport(lti_id, dalite_root_url, lti_key, lti_secret)
+                    result.append(passport)
+                else:
+                    logger.warn(self.MALFORMED_LTI_PASSPORT, lti_passport)
 
         return result
 
@@ -117,7 +104,7 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         :returns: LTI passport matching selected LTI ID
         :rtype: DaliteLtiPassport|None
         """
-        for lti_passport in self._dalite_xblock_lti_passports:
+        for lti_passport in self.dalite_xblock_lti_passports:
             if lti_passport.lti_id == self.lti_id.strip():
                 logging.warn(
                     _(u"LTI passport found for LTI ID %s: dalite URL is %s"), self.lti_id, lti_passport.dalite_root_url
@@ -146,12 +133,12 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         :returns: List of Dalite-xblock LTI passports IDs.
         :rtype: [dict[str, str]]
         """
-        if not self._dalite_xblock_lti_passports:
+        if not self.dalite_xblock_lti_passports:
             return [{"display_name": _("No Dalite-ng LTI Passports configured"), "value": ""}]
 
         return [
             {"display_name": passport.lti_id, "value": passport.lti_id}
-            for passport in self._dalite_xblock_lti_passports
+            for passport in self.dalite_xblock_lti_passports
         ]
 
     def student_view(self, context):

@@ -1,6 +1,26 @@
 # -*- coding: utf-8 -*-
 """Dalite XBlock utils."""
+import re
+from collections import namedtuple
+
 from lazy.lazy import lazy
+
+
+DALITE_XBLOCK_LIT_PASSPORT_PREFIX = r"(dalite-xblock)"
+
+DaliteLtiPassport = namedtuple("LtiPassport", ["lti_id", "dalite_root_url", "lti_key", "lti_secret"])
+DALITE_XBLOCK_LTI_PASSPORT_REGEX = re.compile(
+    r"""
+    ^                   # together with $ at the end denotes entire LTI passport is analyzed
+    \(dalite-xblock\)   # denotes dalite-xblock LTI passport
+    ([^;]*);            # first group - passport ID
+    ([^;]*);            # second group - Dalite-ng URL
+    ([^;]*);            # third group - LTI key
+    ([^;]*)             # fourth group - LTI secret
+    $
+    """,
+    re.VERBOSE
+)
 
 
 def _(text):  # pylint: disable=invalid-name
