@@ -63,7 +63,8 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         # 'ask_to_send_email' - dalite-ng defined
     ]
 
-    MALFORMED_LTI_PASSPORT = _(u"Malformed DAlite-XBlock LTI Passport: %s - skipping")
+    MALFORMED_LTI_PASSPORT = _(u"Malformed Dalite-XBlock LTI Passport: %s - skipping")
+    NO_LTI_PASSPORTS_OPTION = {"display_name": _("No Dalite-ng LTI Passports configured"), "value": ""}
 
     @property
     def course(self):
@@ -134,7 +135,7 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         :rtype: [dict[str, str]]
         """
         if not self.dalite_xblock_lti_passports:
-            return [{"display_name": _("No Dalite-ng LTI Passports configured"), "value": ""}]
+            return [self.NO_LTI_PASSPORTS_OPTION]
 
         return [
             {"display_name": passport.lti_id, "value": passport.lti_id}
