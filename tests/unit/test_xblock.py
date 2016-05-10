@@ -125,6 +125,18 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
         self.assertEqual(self.block.launch_url, launch_url)
 
     @ddt.data(
+        ('', '', ''),
+        ('missing', '', ''),
+        ('dalite-ng-1', "KEY", "SECRET"),
+        ('dalite-ng-2', "OTHERKEY", "OTHERSECRET")
+    )
+    @ddt.unpack
+    def test_key_secret(self, lti_id, key, secret):
+        """Test lti_provider_key_secret property."""
+        self.block.lti_id = lti_id
+        self.assertEqual(self.block.lti_provider_key_secret, (key, secret))
+
+    @ddt.data(
         ([], [DaliteXBlock.NO_LTI_PASSPORTS_OPTION]),  # no passports at all
         (["dalite-ng:QWE:ASD"], [DaliteXBlock.NO_LTI_PASSPORTS_OPTION]),  # no dalite-xblock passports
         # two dalite and one non-dalite pasport

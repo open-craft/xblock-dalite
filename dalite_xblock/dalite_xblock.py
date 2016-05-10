@@ -116,6 +116,13 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         return None
 
     @property
+    def lti_provider_key_secret(self):
+        """Obtain client_key and client_secret credentials from current course."""
+        if not self.lti_passport:
+            return '', ''
+        return self.lti_passport.lti_key, self.lti_passport.lti_secret
+
+    @property
     def launch_url(self):
         """
         Return LTI launch URL for selected LTI passport.
