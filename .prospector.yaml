@@ -1,0 +1,24 @@
+strictness: veryhigh
+test-warnings: true
+doc-warnings: true
+
+pep8:
+  options:
+    max-line-length: 120
+
+pep257:
+  disable:
+    - D203
+
+pylint:
+  disable:
+    - locally-disabled
+    - too-few-public-methods
+    - too-many-ancestors
+  options:
+    max-line-length: 120
+    good-names: id,log,loader,logger,setUp
+    method-rgx: _?[a-z_][a-z0-9_]{2,40}$
+    function-rgx: _?[a-z_][a-z0-9_]{2,40}$
+    method-name-hint: _?[a-z_][a-z0-9_]{2,40}$
+    function-name-hint: _?[a-z_][a-z0-9_]{2,40}$

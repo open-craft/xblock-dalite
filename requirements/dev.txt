@@ -1,0 +1,5 @@
+-r base.txt
+-r quality.txt
+-e .
+
+-r test.txt

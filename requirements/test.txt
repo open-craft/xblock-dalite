@@ -1,0 +1,6 @@
+mock
+ddt
+selenium>=2.52.0
+diff-cover
+
+git+https://github.com/edx/xblock-sdk.git#egg=xblock-sdk
