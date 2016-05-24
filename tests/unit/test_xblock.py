@@ -3,22 +3,32 @@ from unittest import TestCase
 
 import ddt
 import mock
+
 from xblock.core import XBlock
 from xblock.field_data import DictFieldData
 from xblock.fragment import Fragment
 
+from dalite_xblock import dalite_xblock
 from dalite_xblock.dalite_xblock import DaliteXBlock
-from dalite_xblock.utils import DaliteLtiPassport
+from dalite_xblock.passport_utils import DaliteLtiPassport
 from tests.utils import TestWithPatchesMixin
 
 DEFAULT_LTI_PASSPORTS = [
-    "(dalite-xblock)dalite-ng-1;http://first.url:8080/;KEY;SECRET",
-    "(dalite-xblock)dalite-ng-2;https://other.url:8080;OTHERKEY;OTHERSECRET"
+    "dalite-ng-1:dalite-xblock:aHR0cDovL2ZpcnN0LnVybDo4MDgwO0tFWTtTRUNSRVQ=",
+    "dalite-ng-2:dalite-xblock:aHR0cDovL290aGVyLnVybDtPVEhFUktFWTtPVEhFUlNFQ1JFVA==",
+    "dalite-ng-3:dalite-xblock:aHR0cHM6Ly8xOTIuMTY4LjMzLjE7YWxwaGE7YmV0YQ==",
+    "dalite-ng-4:dalite-xblock:aHR0cHM6Ly9leGFtcGxlLmNvbS87YWxwaGE7YmV0YQ=="
 ]
 
 PARSED_LTI_PASSPORTS = {
-    "dalite-ng-1": DaliteLtiPassport("dalite-ng-1", "http://first.url:8080/", "KEY", "SECRET"),
-    "dalite-ng-2": DaliteLtiPassport("dalite-ng-2", "https://other.url:8080", "OTHERKEY", "OTHERSECRET"),
+    # This is http with a port.
+    "dalite-ng-1": DaliteLtiPassport("dalite-ng-1", "http://first.url:8080", "KEY", "SECRET"),
+    # This one is http without a port
+    "dalite-ng-2": DaliteLtiPassport("dalite-ng-2", "http://other.url", "OTHERKEY", "OTHERSECRET"),
+    # This one is https with IP instead of domain
+    "dalite-ng-3": DaliteLtiPassport("dalite-ng-3", "https://192.168.33.1", "alpha", "beta"),
+    # This one has a trailing slash
+    "dalite-ng-4": DaliteLtiPassport("dalite-ng-3", "https://example.com/", "alpha", "beta")
 }
 
 
@@ -48,63 +58,23 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
         self.assertEqual(self.block.course, mock_course)
         self.runtime_mock.modulestore.get_course.assert_called_once_with(self.DEFAULT_COURSE_ID)
 
-    @ddt.data(
-        ([], []),
-        (["dalite-ng:QWE:ASD"], []),  # non dalite-xblock pasport ignored
-        # correctly parses values for dalite-xblock
-        (
-            ["(dalite-xblock)dalite-ng;http://qwe.asd/;QWE;ASD"],
-            [DaliteLtiPassport("dalite-ng", "http://qwe.asd/", "QWE", "ASD")]
-        ),
-        # and can ignore non dalite-xblock passport
-        (
-            ["dalite-ng:QWE:ASD", "(dalite-xblock)dalite-ng-2;https://other.url:8080;KEY;SECRET"],
-            [DaliteLtiPassport("dalite-ng-2", "https://other.url:8080", "KEY", "SECRET")]
-        ),
-        # two dalite-xblock passports
-        (
-            [
-                "dalite-ng:QWE:ASD",
-                "(dalite-xblock)dalite-ng-3;https://other.url:8080;KEY;SECRET",
-                "(dalite-xblock)dalite-ng-4;;;",
-            ],
-            [
-                DaliteLtiPassport("dalite-ng-3", "https://other.url:8080", "KEY", "SECRET"),
-                DaliteLtiPassport("dalite-ng-4", "", "", ""),  # technically, this is valid
-            ]
-        ),
-    )
-    @ddt.unpack
-    def test_dalite_xblock_lti_passports(self, lti_passports, dalite_passports):
+    def test_dalite_xblock_lti_passports(self):
         """Test dalite_xblock_lti_passports property."""
-        self.mock_course.lti_passports = lti_passports
-
-        self.assertEqual(self.block.dalite_xblock_lti_passports, dalite_passports)
-
-    def test_malformed_dalite_xblock_lti_passport(self):
-        """Test malformed LTI passports does not crash XBlock, and record warnings."""
-        lti_passports = [
-            "(dalite-xblock)missing-component;KEY;SECRET",
-            "(dalite-xblock)extra-component;https://other.url:8080;KEY;SECRET;EXTRA_COMPONENT",
-        ]
-
-        self.mock_course.lti_passports = lti_passports
-
-        expected_log_calls = [
-            mock.call(DaliteXBlock.MALFORMED_LTI_PASSPORT, lti_passports[0]),
-            mock.call(DaliteXBlock.MALFORMED_LTI_PASSPORT, lti_passports[1]),
-        ]
-
-        with mock.patch('dalite_xblock.dalite_xblock.logger.warn') as patched_warn:
-            self.assertEqual(self.block.dalite_xblock_lti_passports, [])
-
-            self.assertEqual(patched_warn.call_args_list, expected_log_calls)
+        with mock.patch.object(dalite_xblock, "filter_and_parse_passports") as filter_passwords:
+            passports = ['some:mock:passport']
+            self.mock_course.lti_passports = passports
+            unused_variable_1 = self.block.dalite_xblock_lti_passports
+            unused_variable_2 = self.block.dalite_xblock_lti_passports
+            self.assertIs(unused_variable_1, unused_variable_2)
+            # Calling property twice to check caching behaviour.
+            filter_passwords.assert_called_once_with(passports)
 
     @ddt.data(
         ('', None),
         ('missing', None),
         ('dalite-ng-1', PARSED_LTI_PASSPORTS['dalite-ng-1']),
-        ('dalite-ng-2', PARSED_LTI_PASSPORTS['dalite-ng-2'])
+        ('dalite-ng-2', PARSED_LTI_PASSPORTS['dalite-ng-2']),
+        ('dalite-ng-3', PARSED_LTI_PASSPORTS['dalite-ng-3'])
     )
     @ddt.unpack
     def test_lti_passport(self, lti_id, expected_result):
@@ -116,7 +86,9 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
         ('', ''),
         ('missing', ''),
         ('dalite-ng-1', "http://first.url:8080/lti/"),
-        ('dalite-ng-2', "https://other.url:8080/lti/")
+        ('dalite-ng-2', "http://other.url/lti/"),
+        ('dalite-ng-3', "https://192.168.33.1/lti/"),
+        ('dalite-ng-4', "https://example.com/lti/")
     )
     @ddt.unpack
     def test_launch_url(self, lti_id, launch_url):
@@ -143,12 +115,12 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
         (
             [
                 "dalite-ng:QWE:ASD",
-                "(dalite-xblock)dalite-ng-3;https://other.url:8080;KEY;SECRET",
-                "(dalite-xblock)dalite-ng-4;;;",
+                "dalite-ng-1:dalite-xblock:aHR0cDovL2ZpcnN0LnVybDo4MDgwO0tFWTtTRUNSRVQ=",
+                "dalite-ng-2:dalite-xblock:aHR0cDovL290aGVyLnVybDtPVEhFUktFWTtPVEhFUlNFQ1JFVA=="
             ],
             [
-                {"display_name": "dalite-ng-3", "value": "dalite-ng-3"},
-                {"display_name": "dalite-ng-4", "value": "dalite-ng-4"},
+                {"display_name": "dalite-ng-1", "value": "dalite-ng-1"},
+                {"display_name": "dalite-ng-2", "value": "dalite-ng-2"},
             ]
         )
     )
@@ -190,6 +162,24 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
             print "Expected: ", expected_result
             raise
 
+    def test_is_ready_positive(self):
+        """Test is_ready method returns true when has all the data."""
+        block = DaliteXBlock(
+            self.runtime_mock, DictFieldData({
+                'question_id': '4', 'assignment_id': 'foo', 'lti_id': 'dalite-ng-1'
+            }),
+            scope_ids=mock.Mock()
+        )
+        self.assertTrue(block.is_lti_ready)
+
+    def test_is_ready_negative(self):
+        """Test is_ready method returns false without the data."""
+        block = DaliteXBlock(
+            self.runtime_mock, DictFieldData({}),
+            scope_ids=mock.Mock()
+        )
+        self.assertFalse(block.is_lti_ready)
+
     # TODO: should be an integration test - figure out how to do this
     # AS is, this test is extremely fragile - it'll likely break on every code change
     def test_student_view(self):
@@ -198,9 +188,12 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
         context = {}
         load_js_result = "Load JS result"
         with mock.patch("dalite_xblock.dalite_xblock.LtiConsumerXBlock.student_view") as patched_super, \
-                mock.patch("dalite_xblock.dalite_xblock.loader.load_unicode") as patched_load_unicode:
+            mock.patch("dalite_xblock.dalite_xblock.loader.load_unicode") as patched_load_unicode, \
+            mock.patch(
+                'dalite_xblock.dalite_xblock.DaliteXBlock.is_lti_ready', new_callable=mock.PropertyMock) as is_ready:
             patched_super.return_value = mock_fragment
             patched_load_unicode.return_value = load_js_result
+            is_ready.return_value = True
 
             result = self.block.student_view(context)
             patched_super.assert_called_once_with(context)
@@ -210,8 +203,24 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
             mock_fragment.add_javascript.assert_called_once_with(load_js_result)
             mock_fragment.initialize_js.assert_called_once_with('DaliteXBlock')
 
+    # TODO: should be an integration test - figure out how to do this
+    # As is, this test is extremely fragile - it'll likely break on every code change
+    def test_student_view_error(self):
+        """Test that student_view adds JS workaround."""
+        with mock.patch('dalite_xblock.dalite_xblock.DaliteXBlock._get_context_for_template') as context, \
+            mock.patch(
+                'dalite_xblock.dalite_xblock.DaliteXBlock.is_lti_ready', new_callable=mock.PropertyMock) as is_ready:
+            context.return_value = {}
+            is_ready.return_value = False
+
+            result = self.block.student_view(context)
+            self.assertIn(
+                'No question selected. Please click "Edit" and enter the assignment ID and question ID.',
+                result.body_html()
+            )
+
     # TODO: should be an integration test - figure out how to do this.
-    # AS is, this test is extremely fragile - it'll likely break on every code change
+    # As is, this test is extremely fragile - it'll likely break on every code change
     def test_studio_view(self):
         """Test that studio adds JS workaround."""
         mock_fragment = mock.Mock(spec=Fragment)

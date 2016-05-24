@@ -3,12 +3,13 @@ import logging
 
 from lazy.lazy import lazy
 from lti_consumer import LtiConsumerXBlock
-from xblockutils.resources import ResourceLoader
+from xblock.fragment import Fragment
 from xblock.fields import String, Scope
+from xblockutils.resources import ResourceLoader
 
 from .mixins import CourseAwareXBlockMixin
-from .utils import _, FieldValuesContextManager, DaliteLtiPassport, DALITE_XBLOCK_LTI_PASSPORT_REGEX, \
-    DALITE_XBLOCK_LIT_PASSPORT_PREFIX
+from .utils import _, FieldValuesContextManager
+from .passport_utils import filter_and_parse_passports
 
 logger = logging.getLogger(__name__)
 loader = ResourceLoader(__name__)
@@ -63,7 +64,6 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         # 'ask_to_send_email' - dalite-ng defined
     ]
 
-    MALFORMED_LTI_PASSPORT = _(u"Malformed Dalite-XBlock LTI Passport: %s - skipping")
     NO_LTI_PASSPORTS_OPTION = {"display_name": _("No Dalite-ng LTI Passports configured"), "value": ""}
 
     @property
@@ -84,18 +84,7 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         :returns: list of all Dalite-xblock LTI Passports
         :rtype: list[DaliteLtiPassport]
         """
-        result = []
-        for lti_passport in self.course.lti_passports:
-            if DALITE_XBLOCK_LIT_PASSPORT_PREFIX in lti_passport:
-                lti_passport_analyzed = DALITE_XBLOCK_LTI_PASSPORT_REGEX.search(lti_passport)
-                if lti_passport_analyzed and lti_passport_analyzed.group(0):   # prevents zero-length matches
-                    lti_id, dalite_root_url, lti_key, lti_secret = lti_passport_analyzed.group(1, 2, 3, 4)
-                    passport = DaliteLtiPassport(lti_id, dalite_root_url, lti_key, lti_secret)
-                    result.append(passport)
-                else:
-                    logger.warn(self.MALFORMED_LTI_PASSPORT, lti_passport)
-
-        return result
+        return filter_and_parse_passports(self.course.lti_passports)
 
     @lazy
     def lti_passport(self):
@@ -149,6 +138,11 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
             for passport in self.dalite_xblock_lti_passports
         ]
 
+    @property
+    def is_lti_ready(self):
+        """Check if this XBlock has all settings so it can connect to the LTI."""
+        return all((self.launch_url, self.question_id, self.assignment_id))
+
     def student_view(self, context):
         """
         XBlock student view of this component.
@@ -162,6 +156,11 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         :returns: XBlock HTML fragment
         :rtype: xblock.fragment.Fragment
         """
+        if not self.is_lti_ready:
+            fragment = Fragment()
+            context.update(self._get_context_for_template())
+            fragment.add_content(loader.render_django_template('/templates/xblock_data_not_filled.html', context))
+            return fragment
         fragment = super(DaliteXBlock, self).student_view(context)
         fragment.add_javascript(loader.load_unicode('public/js/dalite_xblock.js'))
         fragment.initialize_js('DaliteXBlock')
@@ -187,7 +186,7 @@ class DaliteXBlock(LtiConsumerXBlock, CourseAwareXBlockMixin):
         """
         Given POST data dictionary 'data', clean the data before validating it.
 
-        USe cases: fix capitalization, remove trailing spaces, etc.
+        Use cases: fix capitalization, remove trailing spaces, etc.
 
         Provides values for fields required by LtiConsumerXBlock, but not exposed in Studio interface.
         Modifies data in place to change/clean/add field values
