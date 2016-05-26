@@ -22,6 +22,8 @@ setup-self:
 	python setup.py sdist && pip install dist/xblock-dalite-0.1.tar.gz
 
 test:
+	mkdir -p var
+	rm -rf .coverage
 ifdef XVFB
 	xvfb-run --server-args="-screen 0, 1920x1080x24" ./run_tests.py --with-coverage --cover-package=dalite_xblock
 else
