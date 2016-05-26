@@ -180,6 +180,72 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
         )
         self.assertFalse(block.is_lti_ready)
 
+    def test_add_custom_parameters(self):
+        """Test for add_extra_custom_params contextmanager."""
+        canary = ['param1=value1']
+        additional_params = ["param2=value2", "param3=value3"]
+        self.block.custom_parameters = canary
+
+        with self.block.add_extra_custom_params(additional_params):
+            self.assertEqual(len(self.block.custom_parameters), len(additional_params + canary))
+            self.assertEqual(set(self.block.custom_parameters), set(additional_params + canary))
+
+        self.assertIs(self.block.custom_parameters, canary)
+        self.assertEqual(self.block.custom_parameters, ['param1=value1'])
+
+    @ddt.data(
+        # For requests without suffix there is no extra parameters
+        ('', []),
+        (DaliteXBlock.ADMIN_URL_SUFFIX, [u'action=launch-admin']),
+        (DaliteXBlock.EDIT_QUESTION_SUFFIX, [u'action=edit-question'])
+
+    )
+    @ddt.unpack
+    def test_lti_launch_handler(self, suffix, expected_params):
+        """Test for lti_launch_handler method."""
+        request_canary = object()
+
+        # Workaround around lack of nonlocal in python 2
+        actual_values = {}
+
+        def super_handler_mock(self, request, suffix=''):
+            """A mock version of lti_launch_handler that will be attached to super call."""
+            actual_values['actual_params'] = self.custom_parameters
+            actual_values['actual_request'] = request
+            actual_values['actual_suffix'] = suffix
+
+        with mock.patch("dalite_xblock.dalite_xblock.LtiConsumerXBlock.lti_launch_handler", super_handler_mock):
+            self.block.lti_launch_handler(request_canary, suffix)
+
+        self.assertIs(request_canary, actual_values['actual_request'])
+        self.assertEqual('', actual_values['actual_suffix'])
+        self.assertEqual(expected_params, actual_values['actual_params'])
+
+    def test_render_admin_button(self):
+        """Test for the render_button_launching_admin method."""
+        rendered_canary = "I'm `HTML` template **pinky swear**"
+        form_url_suffix = "/test"
+        button_label = "Press Me"
+        id_specifier = "launch-admin"
+        context = {
+            "form_url": "deadbeef/lti_launch_handler",
+        }
+
+        with mock.patch('dalite_xblock.dalite_xblock.DaliteXBlock._get_context_for_template') as context, \
+                mock.patch(
+                "dalite_xblock.dalite_xblock.loader.render_django_template", return_value=rendered_canary) as render:
+            context.return_value = {}
+            result = self.block.render_button_launching_admin(context, form_url_suffix, button_label, id_specifier)
+            self.assertEqual(result, rendered_canary)
+
+        render.assert_called_once_with(
+            '/templates/dalite_xblock_lti_iframe.html',
+            {
+                'element_id_specifier': 'launch-admin', 'dalite_admin_label': 'Press Me', 'has_score': False,
+                'form_url_suffix': '/test'
+            }
+        )
+
     # TODO: should be an integration test - figure out how to do this
     # AS is, this test is extremely fragile - it'll likely break on every code change
     def test_student_view(self):
@@ -203,21 +269,80 @@ class DaliteXBlockTests(TestCase, TestWithPatchesMixin):
             mock_fragment.add_javascript.assert_called_once_with(load_js_result)
             mock_fragment.initialize_js.assert_called_once_with('DaliteXBlock')
 
-    # TODO: should be an integration test - figure out how to do this
-    # As is, this test is extremely fragile - it'll likely break on every code change
-    def test_student_view_error(self):
-        """Test that student_view adds JS workaround."""
-        with mock.patch('dalite_xblock.dalite_xblock.DaliteXBlock._get_context_for_template') as context, \
+    def _do_error_page_test(self, view_to_test, is_in_studio):
+        with mock.patch("dalite_xblock.dalite_xblock.LtiConsumerXBlock.student_view") as patched_super, \
+            mock.patch('dalite_xblock.dalite_xblock.DaliteXBlock._get_context_for_template') as context, \
             mock.patch(
-                'dalite_xblock.dalite_xblock.DaliteXBlock.is_lti_ready', new_callable=mock.PropertyMock) as is_ready:
+                'dalite_xblock.dalite_xblock.DaliteXBlock.is_lti_ready',
+                new_callable=mock.PropertyMock) as is_ready, \
+            mock.patch(
+                'dalite_xblock.dalite_xblock.DaliteXBlock.get_status_message') as get_status_message:
             context.return_value = {}
             is_ready.return_value = False
+            patched_super.return_value = Fragment()
+            get_status_message.return_value = "Some error"
 
-            result = self.block.student_view(context)
+            result = view_to_test({})
             self.assertIn(
-                'No question selected. Please click "Edit" and enter the assignment ID and question ID.',
+                "Some error",
                 result.body_html()
             )
+            get_status_message.assert_called_once_with(is_in_studio)
+
+    def test_author_view_error(self):
+        """Test author view calls get_status_message."""
+        self._do_error_page_test(self.block.author_view, True)
+
+    @ddt.data(
+        # If lti is ready there is no error message
+        (None, True, True, True),
+        (None, False, True, True),
+        # If lti is not ready display the same message in LMS
+        (DaliteXBlock.LMS_ERROR_MESSAGE, False, False, False),
+        (DaliteXBlock.LMS_ERROR_MESSAGE, False, False, True),
+        # In LMS display different message depending on conditions
+        (DaliteXBlock.CMS_NO_PASSPORT_ERROR, True, False, False),
+        (DaliteXBlock.CMS_NO_QUESTION_ERROR, True, False, True),
+    )
+    @ddt.unpack
+    def test_get_message(self, expected_message, in_studio, is_ready_value, has_launch_url):
+        """Test author view calls get_status_message."""
+        with mock.patch(
+                'dalite_xblock.dalite_xblock.DaliteXBlock.launch_url',
+                new_callable=mock.PropertyMock) as launch_url, \
+            mock.patch(
+                'dalite_xblock.dalite_xblock.DaliteXBlock.is_lti_ready',
+                new_callable=mock.PropertyMock) as is_ready:
+            launch_url.return_value = "http://dalite" if has_launch_url else ''
+            is_ready.return_value = is_ready_value
+            actual_message = self.block.get_status_message(in_studio)
+            self.assertEqual(actual_message, expected_message)
+
+    def test_author_view_ok(self):
+        """Test author view runs successfully."""
+        render_result = Fragment()
+        with mock.patch(
+            'dalite_xblock.dalite_xblock.DaliteXBlock.render_student_view',
+            return_value=render_result), \
+            mock.patch(
+                'dalite_xblock.dalite_xblock.DaliteXBlock.render_button_launching_admin',
+                return_value=u'') as render_button, \
+            mock.patch(
+                'dalite_xblock.dalite_xblock.DaliteXBlock.is_lti_ready',
+                new_callable=mock.PropertyMock) as is_ready, \
+            mock.patch(
+                'dalite_xblock.dalite_xblock.DaliteXBlock.launch_url',
+                new_callable=mock.PropertyMock) as launch_url:
+
+            is_ready.return_value = True
+            launch_url.return_value = "http://example.com/lti/"
+
+            self.block.author_view({})
+            self.assertEqual(len(render_button.call_args_list), 2)
+
+    def test_student_view_error(self):
+        """Test student view calls get_status_message."""
+        self._do_error_page_test(self.block.student_view, False)
 
     # TODO: should be an integration test - figure out how to do this.
     # As is, this test is extremely fragile - it'll likely break on every code change
