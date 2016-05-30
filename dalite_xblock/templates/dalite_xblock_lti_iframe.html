@@ -1,0 +1,34 @@
+<div class="{{ element_class }}">
+
+<button
+    class="btn btn-pl-primary btn-base btn-lti-modal-dalite-admin"
+    data-target="#{{ element_id }}-{{ element_id_specifier }}"
+    data-xblock-id="{{ element_id}}"
+>
+    {{ dalite_admin_label }}  <i class="icon fa fa-external-link"></i>
+</button>
+
+<section
+    id="{{ element_id }}-{{ element_id_specifier }}"
+    class="modal lti-modal"
+    aria-hidden="true"
+    style="width:{{ modal_width }}%; left:{{ modal_horizontal_offset}}%; top:{{modal_vertical_offset}}%; bottom:{{modal_vertical_offset}}%;"
+    data-launch-url="{{ form_url }}/{{ form_url_suffix }}"
+>
+    <div class="inner-wrapper" role="dialog">
+        <button class="close-modal">
+            <i class="icon fa fa-remove"></i>
+            <span class="sr">Close</span>
+        </button>
+        <iframe
+            title="{{ display_name }}"
+            class="ltiLaunchFrame"
+            name="ltiFrame-{{ element_id }}"
+            src="{{ initial_launch_url }}"
+            allowfullscreen="true"
+            webkitallowfullscreen="true"
+            mozallowfullscreen="true"
+        ></iframe>
+    </div>
+</section>
+</div>
